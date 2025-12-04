@@ -11,9 +11,7 @@ process idr_call {
   publishDir "${params.project_folder}/${idr_output}", mode: 'copy'
 
   input:
-    val pair
-    path peaks1
-    path peaks2
+    tuple val(pair), path(peaks1), path(peaks2)
 
   script:
   """
@@ -30,11 +28,11 @@ process idr_call {
     --plot \\
     --idr-threshold ${params.idr_threshold}
 
-
   awk 'BEGIN{OFS="\\t"} !/^#/ {print \$1,\$2,\$3,"'${pair}'_IDR_peak_"NR,1000,".",\$7,\$8,\$9,\$10}' \\
       ${pair}_idr.txt > ${pair}_idr.narrowPeak
   """
 }
+
 
 workflow {
 

@@ -1,0 +1,3 @@
+﻿"pair_name,rep1_peaks,rep2_peaks"
+"WT,macs3_output/GAR0968_S40_L006_R.clean_peaks.narrowPeak,macs3_output/GAR0979_S58_L008_R.clean_peaks.narrowPeak"
+"TG,macs3_output/GAR1585_S9_L001_R.clean_peaks.narrowPeak,macs3_output/GAR1586_S10_L001_R.clean_peaks.narrowPeak"

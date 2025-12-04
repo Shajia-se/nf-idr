@@ -26,7 +26,14 @@ multiqc_output/
 picard_output/
 chipfilter_output/
 macs3_output/
-demo_data
+demo_data/
+idr_output/
+homer_output/
+diffbind_output/
+bigwig_output/
+chipseeker_output/
+deeptools_output/
+
 
 # Large data folders
 data/

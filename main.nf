@@ -12,6 +12,12 @@ process idr_call {
 
   input:
     tuple val(pair), path(peaks1), path(peaks2)
+  
+  output:
+    path("${pair}_idr.narrowPeak")
+    path("${pair}_idr.txt")
+    path("${pair}_idr.log")
+    path("${pair}_idr.txt.png")
 
   script:
   """

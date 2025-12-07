@@ -1,0 +1,5 @@
+﻿rep_name,bam
+WT_GAR0968,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-chipfilter/chipfilter_output/GAR0968_S40_L006_R.clean.bam
+WT_GAR0979,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-chipfilter/chipfilter_output/GAR0979_S58_L008_R.clean.bam
+TG_GAR1585,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-chipfilter/chipfilter_output/GAR1585_S9_L001_R.clean.bam
+TG_GAR1586,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-chipfilter/chipfilter_output/GAR1586_S10_L001_R.clean.bam

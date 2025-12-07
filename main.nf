@@ -39,6 +39,64 @@ process idr_call {
   """
 }
 
+process pseudo_idr_from_bam {
+  tag "${rep_name}"
+  stageInMode 'symlink'
+  stageOutMode 'move'
+
+  publishDir "${params.project_folder}/${idr_output}", mode: 'copy'
+
+  input:
+    tuple val(rep_name), path(bam)
+
+  output:
+    path("${rep_name}_pseudo_idr.narrowPeak")
+    path("${rep_name}_pseudo_idr.txt")
+    path("${rep_name}_pseudo_idr.log")
+    path("${rep_name}_pseudo_idr.txt.png")
+
+  script:
+  """
+  set -eux
+
+  samtools view -b -s 0.5 ${bam} -o ${rep_name}.pseudo1.bam
+  samtools view -b -s 0.5 ${bam} -o ${rep_name}.pseudo2.bam
+
+  samtools index ${rep_name}.pseudo1.bam
+  samtools index ${rep_name}.pseudo2.bam
+
+  macs2 callpeak \\
+    -t ${rep_name}.pseudo1.bam \\
+    -n ${rep_name}_pseudo1 \\
+    -f BAM \\
+    -g ${params.macs3_genome} \\   
+    --outdir . \\
+    --keep-dup all \\
+    -q 0.01
+
+  macs2 callpeak \\
+    -t ${rep_name}.pseudo2.bam \\
+    -n ${rep_name}_pseudo2 \\
+    -f BAM \\
+    -g ${params.macs3_genome} \\
+    --outdir . \\
+    --keep-dup all \\
+    -q 0.01
+
+  idr \\
+    --samples ${rep_name}_pseudo1_peaks.narrowPeak ${rep_name}_pseudo2_peaks.narrowPeak \\
+    --input-file-type narrowPeak \\
+    --rank signal.value \\
+    --output-file ${rep_name}_pseudo_idr.txt \\
+    --log-output-file ${rep_name}_pseudo_idr.log \\
+    --plot \\
+    --idr-threshold ${params.idr_threshold}
+
+  awk 'BEGIN{OFS="\\t"} !/^#/ {print \$1,\$2,\$3,"'${rep_name}'_PSEUDO_IDR_peak_"NR,1000,".",\$7,\$8,\$9,\$10}' \\
+      ${rep_name}_pseudo_idr.txt > ${rep_name}_pseudo_idr.narrowPeak
+  """
+}
+
 
 workflow {
 
@@ -57,4 +115,23 @@ workflow {
   }
 
   idr_call(pairs_ch)
+
+  if( params.do_pseudo_idr ) {
+
+    def pseudo_bam_csv = params.pseudo_idr_bam_csv ?: "pseudo_idr_bam.csv"
+
+    pseudo_rows = Channel
+      .fromPath(pseudo_bam_csv, checkIfExists: true)
+      .splitCsv(header: true)
+
+    pseudo_rows = pseudo_rows.filter { row ->
+      ! file("${params.project_folder}/${idr_output}/${row.rep_name}_pseudo_idr.narrowPeak").exists()
+    }
+
+    pseudo_input_ch = pseudo_rows.map { row ->
+      tuple( row.rep_name, file(row.bam) )
+    }
+
+    pseudo_idr_from_bam(pseudo_input_ch)
+  }
 }

@@ -2,6 +2,7 @@
 nextflow.enable.dsl=2
 
 def idr_output = params.idr_output ?: "idr_output"
+def pseudo_idr_output = params.pseudo_idr_output ?: "pseudo_idr_output"
 
 process idr_call {
   tag "${pair}"
@@ -44,7 +45,7 @@ process pseudo_idr_from_bam {
   stageInMode 'symlink'
   stageOutMode 'move'
 
-  publishDir "${params.project_folder}/${idr_output}", mode: 'copy'
+  publishDir "${params.project_folder}/${pseudo_idr_output}", mode: 'copy'
 
   input:
     tuple val(rep_name), path(bam)
@@ -59,8 +60,8 @@ process pseudo_idr_from_bam {
   """
   set -eux
 
-  samtools view -b -s 0.5 ${bam} -o ${rep_name}.pseudo1.bam
-  samtools view -b -s 0.5 ${bam} -o ${rep_name}.pseudo2.bam
+  samtools view -b -s 42.5 ${bam} -o ${rep_name}.pseudo1.bam
+  samtools view -b -s 43.5 ${bam} -o ${rep_name}.pseudo2.bam
 
   samtools index ${rep_name}.pseudo1.bam
   samtools index ${rep_name}.pseudo2.bam
@@ -125,7 +126,7 @@ workflow {
       .splitCsv(header: true)
 
     pseudo_rows = pseudo_rows.filter { row ->
-      ! file("${params.project_folder}/${idr_output}/${row.rep_name}_pseudo_idr.narrowPeak").exists()
+      ! file("${params.project_folder}/${pseudo_idr_output}/${row.rep_name}_pseudo_idr.narrowPeak").exists()
     }
 
     pseudo_input_ch = pseudo_rows.map { row ->

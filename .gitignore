@@ -33,6 +33,8 @@ diffbind_output/
 bigwig_output/
 chipseeker_output/
 deeptools_output/
+pseudo_idr_output/
+*_output/
 
 
 # Large data folders

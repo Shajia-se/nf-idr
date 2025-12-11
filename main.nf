@@ -113,7 +113,9 @@ process sort_idr_peaks {
 
   output:
     path("${pair}_idr.sorted.bed")
+    path("${pair}_idr.sorted.chr.bed")
     path("${pair}_idr.sorted.narrowPeak")
+    path("${pair}_idr.sorted.chr.narrowPeak")
 
   script:
   """
@@ -121,9 +123,16 @@ process sort_idr_peaks {
 
   cut -f1-3 ${idr_np} | sort -k1,1V -k2,2n > ${pair}_idr.sorted.bed
 
+  awk 'BEGIN{OFS="\\t"} { if (\$1 !~ /^chr/) \$1 = "chr"\$1; print }' \
+      ${pair}_idr.sorted.bed > ${pair}_idr.sorted.chr.bed
+
   sort -k1,1V -k2,2n ${idr_np} > ${pair}_idr.sorted.narrowPeak
+
+  awk 'BEGIN{OFS="\\t"} { if (\$1 !~ /^chr/) \$1 = "chr"\$1; print }' \
+      ${pair}_idr.sorted.narrowPeak > ${pair}_idr.sorted.chr.narrowPeak
   """
 }
+
 
 workflow {
 
@@ -134,9 +143,9 @@ workflow {
     .splitCsv(header: true)
 
   rows = rows.filter { row ->
-    def bed    = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.bed")
-    def narrow = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.narrowPeak")
-    !(bed.exists() && narrow.exists())
+    def bed_chr    = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.chr.bed")
+    def narrow_chr = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.chr.narrowPeak")
+    !(bed_chr.exists() && narrow_chr.exists())
   }
 
   pairs_ch = rows.map { row ->

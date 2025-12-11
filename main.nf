@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
-def idr_output = params.idr_output ?: "idr_output"
+def idr_output        = params.idr_output        ?: "idr_output"
 def pseudo_idr_output = params.pseudo_idr_output ?: "pseudo_idr_output"
 
 process idr_call {
@@ -15,10 +15,11 @@ process idr_call {
     tuple val(pair), path(peaks1), path(peaks2)
   
   output:
-    path("${pair}_idr.narrowPeak")
-    path("${pair}_idr.txt")
-    path("${pair}_idr.log")
-    path("${pair}_idr.txt.png")
+    tuple val(pair), \
+      path("${pair}_idr.narrowPeak"), \
+      path("${pair}_idr.txt"), \
+      path("${pair}_idr.log"), \
+      path("${pair}_idr.txt.png")
 
   script:
   """
@@ -66,31 +67,32 @@ process pseudo_idr_from_bam {
   samtools index ${rep_name}.pseudo1.bam
   samtools index ${rep_name}.pseudo2.bam
 
-  macs2 callpeak \
-    -t ${rep_name}.pseudo1.bam \
-    -n ${rep_name}_pseudo1 \
-    -f BAM \
-    -g 1.87e9 \
-    --outdir . \
-    --keep-dup all \
+  # GRCm39 effective genome size (deepTools)
+  macs2 callpeak \\
+    -t ${rep_name}.pseudo1.bam \\
+    -n ${rep_name}_pseudo1 \\
+    -f BAM \\
+    -g 2654621783 \\
+    --outdir . \\
+    --keep-dup all \\
     -q ${params.qvalue}
 
-  macs2 callpeak \
-    -t ${rep_name}.pseudo2.bam \
-    -n ${rep_name}_pseudo2 \
-    -f BAM \
-    -g 1.87e9 \
-    --outdir . \
-    --keep-dup all \
+  macs2 callpeak \\
+    -t ${rep_name}.pseudo2.bam \\
+    -n ${rep_name}_pseudo2 \\
+    -f BAM \\
+    -g 2654621783 \\
+    --outdir . \\
+    --keep-dup all \\
     -q ${params.qvalue}
 
-  idr \
-    --samples ${rep_name}_pseudo1_peaks.narrowPeak ${rep_name}_pseudo2_peaks.narrowPeak \
-    --input-file-type narrowPeak \
-    --rank signal.value \
-    --output-file ${rep_name}_pseudo_idr.txt \
-    --log-output-file ${rep_name}_pseudo_idr.log \
-    --plot \
+  idr \\
+    --samples ${rep_name}_pseudo1_peaks.narrowPeak ${rep_name}_pseudo2_peaks.narrowPeak \\
+    --input-file-type narrowPeak \\
+    --rank signal.value \\
+    --output-file ${rep_name}_pseudo_idr.txt \\
+    --log-output-file ${rep_name}_pseudo_idr.log \\
+    --plot \\
     --idr-threshold ${params.idr_threshold}
 
   awk 'BEGIN{OFS="\\t"} !/^#/ {print \$1,\$2,\$3,"'${rep_name}'_PSEUDO_IDR_peak_"NR,1000,".",\$7,\$8,\$9,\$10}' \\
@@ -98,6 +100,30 @@ process pseudo_idr_from_bam {
   """
 }
 
+process sort_idr_peaks {
+
+  tag "${pair}"
+  stageInMode 'symlink'
+  stageOutMode 'move'
+
+  publishDir "${params.project_folder}/${idr_output}", mode: 'copy'
+
+  input:
+    tuple val(pair), path(idr_np), path(idr_txt), path(idr_log), path(idr_png)
+
+  output:
+    path("${pair}_idr.sorted.bed")
+    path("${pair}_idr.sorted.narrowPeak")
+
+  script:
+  """
+  set -euo pipefail
+
+  cut -f1-3 ${idr_np} | sort -k1,1V -k2,2n > ${pair}_idr.sorted.bed
+
+  sort -k1,1V -k2,2n ${idr_np} > ${pair}_idr.sorted.narrowPeak
+  """
+}
 
 workflow {
 
@@ -108,14 +134,18 @@ workflow {
     .splitCsv(header: true)
 
   rows = rows.filter { row ->
-    ! file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.narrowPeak").exists()
+    def bed    = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.bed")
+    def narrow = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.narrowPeak")
+    !(bed.exists() && narrow.exists())
   }
 
   pairs_ch = rows.map { row ->
     tuple( row.pair_name, file(row.rep1_peaks), file(row.rep2_peaks) )
   }
 
-  idr_call(pairs_ch)
+  idr_results_ch = idr_call(pairs_ch)
+
+  sort_idr_peaks(idr_results_ch)
 
   if( params.do_pseudo_idr ) {
 

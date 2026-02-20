@@ -1,4 +1,4 @@
 pair_name,rep1_peaks,rep2_peaks
-WT,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR0968_S40_L006_R.clean_peaks.narrowPeak,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR0979_S58_L008_R.clean_peaks.narrowPeak
-TG,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR1585_S9_L001_R.clean_peaks.narrowPeak,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR1586_S10_L001_R.clean_peaks.narrowPeak
+WT,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR0968_peaks.narrowPeak,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR0979_peaks.narrowPeak
+TG,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR1585_peaks.narrowPeak,/ictstr01/groups/idc/projects/uhlenhaut/jiang/pipelines/nf-macs3/macs3_output/GAR1586_peaks.narrowPeak
 

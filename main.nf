@@ -3,6 +3,9 @@ nextflow.enable.dsl=2
 
 def idr_output        = params.idr_output        ?: "idr_output"
 def pseudo_idr_output = params.pseudo_idr_output ?: "pseudo_idr_output"
+def idr_rank          = params.idr_rank          ?: "signal.value"
+def idr_input_type    = params.idr_input_type    ?: "narrowPeak"
+def pseudo_peak_q     = params.qvalue            ?: 0.05
 
 process idr_call {
   tag "${pair}"
@@ -25,12 +28,10 @@ process idr_call {
   """
   set -eux
 
-  mkdir -p ${params.project_folder}/${idr_output}
-
   idr \\
     --samples ${peaks1} ${peaks2} \\
-    --input-file-type narrowPeak \\
-    --rank signal.value \\
+    --input-file-type ${idr_input_type} \\
+    --rank ${idr_rank} \\
     --output-file ${pair}_idr.txt \\
     --log-output-file ${pair}_idr.log \\
     --plot \\
@@ -58,6 +59,7 @@ process pseudo_idr_from_bam {
     path("${rep_name}_pseudo_idr.txt.png")
 
   script:
+  def macs_format = (params.seq == 'paired') ? 'BAMPE' : 'BAM'
   """
   set -eux
 
@@ -67,29 +69,29 @@ process pseudo_idr_from_bam {
   samtools index ${rep_name}.pseudo1.bam
   samtools index ${rep_name}.pseudo2.bam
 
-  # GRCm39 effective genome size (deepTools)
+  # Call peaks on pseudo-replicates before IDR
   macs2 callpeak \\
     -t ${rep_name}.pseudo1.bam \\
     -n ${rep_name}_pseudo1 \\
-    -f BAM \\
-    -g 2654621783 \\
+    -f ${macs_format} \\
+    -g ${params.macs3_genome} \\
     --outdir . \\
     --keep-dup all \\
-    -q ${params.qvalue}
+    -q ${pseudo_peak_q}
 
   macs2 callpeak \\
     -t ${rep_name}.pseudo2.bam \\
     -n ${rep_name}_pseudo2 \\
-    -f BAM \\
-    -g 2654621783 \\
+    -f ${macs_format} \\
+    -g ${params.macs3_genome} \\
     --outdir . \\
     --keep-dup all \\
-    -q ${params.qvalue}
+    -q ${pseudo_peak_q}
 
   idr \\
     --samples ${rep_name}_pseudo1_peaks.narrowPeak ${rep_name}_pseudo2_peaks.narrowPeak \\
-    --input-file-type narrowPeak \\
-    --rank signal.value \\
+    --input-file-type ${idr_input_type} \\
+    --rank ${idr_rank} \\
     --output-file ${rep_name}_pseudo_idr.txt \\
     --log-output-file ${rep_name}_pseudo_idr.log \\
     --plot \\
@@ -138,21 +140,26 @@ workflow {
 
   def idr_csv = params.idr_pairs_csv ?: "idr_pairs.csv"
 
-  rows = Channel
+  def rows = Channel
     .fromPath(idr_csv, checkIfExists: true)
     .splitCsv(header: true)
 
-  rows = rows.filter { row ->
+  def filtered_rows = rows.filter { row ->
     def bed_chr    = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.chr.bed")
     def narrow_chr = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.chr.narrowPeak")
     !(bed_chr.exists() && narrow_chr.exists())
   }
 
-  pairs_ch = rows.map { row ->
-    tuple( row.pair_name, file(row.rep1_peaks), file(row.rep2_peaks) )
+  def pairs_ch = filtered_rows.map { row ->
+    assert row.pair_name && row.rep1_peaks && row.rep2_peaks : "idr_pairs.csv must contain: pair_name,rep1_peaks,rep2_peaks"
+    def p1 = file(row.rep1_peaks.toString())
+    def p2 = file(row.rep2_peaks.toString())
+    assert p1.exists() : "rep1_peaks not found for ${row.pair_name}: ${p1}"
+    assert p2.exists() : "rep2_peaks not found for ${row.pair_name}: ${p2}"
+    tuple(row.pair_name.toString(), p1, p2)
   }
 
-  idr_results_ch = idr_call(pairs_ch)
+  def idr_results_ch = idr_call(pairs_ch)
 
   sort_idr_peaks(idr_results_ch)
 
@@ -160,16 +167,19 @@ workflow {
 
     def pseudo_bam_csv = params.pseudo_idr_bam_csv ?: "pseudo_idr_bam.csv"
 
-    pseudo_rows = Channel
+    def pseudo_rows = Channel
       .fromPath(pseudo_bam_csv, checkIfExists: true)
       .splitCsv(header: true)
 
-    pseudo_rows = pseudo_rows.filter { row ->
+    def pseudo_filtered_rows = pseudo_rows.filter { row ->
       ! file("${params.project_folder}/${pseudo_idr_output}/${row.rep_name}_pseudo_idr.narrowPeak").exists()
     }
 
-    pseudo_input_ch = pseudo_rows.map { row ->
-      tuple( row.rep_name, file(row.bam) )
+    def pseudo_input_ch = pseudo_filtered_rows.map { row ->
+      assert row.rep_name && row.bam : "pseudo_idr_bam.csv must contain: rep_name,bam"
+      def b = file(row.bam.toString())
+      assert b.exists() : "pseudo-IDR BAM not found for ${row.rep_name}: ${b}"
+      tuple(row.rep_name.toString(), b)
     }
 
     pseudo_idr_from_bam(pseudo_input_ch)

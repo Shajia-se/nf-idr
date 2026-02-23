@@ -137,12 +137,80 @@ process sort_idr_peaks {
 
 
 workflow {
+  def rows
+  def peak_ext = (params.idr_input_type ?: "narrowPeak").toString()
 
-  def idr_csv = params.idr_pairs_csv ?: "idr_pairs.csv"
+  if (params.idr_pairs_csv && file(params.idr_pairs_csv).exists()) {
+    rows = Channel
+      .fromPath(params.idr_pairs_csv, checkIfExists: true)
+      .splitCsv(header: true)
+  } else if (params.samples_master) {
+    def master = file(params.samples_master)
+    assert master.exists() : "samples_master not found: ${params.samples_master}"
 
-  def rows = Channel
-    .fromPath(idr_csv, checkIfExists: true)
-    .splitCsv(header: true)
+    def header = null
+    def records = []
+    master.eachLine { line, n ->
+      if (!line?.trim()) return
+      def cols = line.split(',', -1)*.trim()
+      if (n == 1) {
+        header = cols
+      } else {
+        def rec = [:]
+        header.eachWithIndex { h, i -> rec[h] = i < cols.size() ? cols[i] : '' }
+        records << rec
+      }
+    }
+
+    assert header : "samples_master header not found: ${params.samples_master}"
+    assert header.contains('sample_id') : "samples_master missing required column: sample_id"
+    assert header.contains('condition') : "samples_master missing required column: condition"
+
+    def isEnabled = { rec ->
+      def v = rec.enabled?.toString()?.trim()?.toLowerCase()
+      (v == null || v == '' || v == 'true')
+    }
+    def isControl = { rec ->
+      rec.is_control?.toString()?.trim()?.toLowerCase() == 'true'
+    }
+    def useForIdr = { rec ->
+      def v = rec.use_for_idr?.toString()?.trim()?.toLowerCase()
+      (v == null || v == '' || v == 'true')
+    }
+    def isChip = { rec ->
+      def lt = rec.library_type?.toString()?.trim()?.toLowerCase()
+      !isControl(rec) && (lt == null || lt == '' || lt == 'chip')
+    }
+
+    def byCond = records
+      .findAll { rec -> isEnabled(rec) && useForIdr(rec) && isChip(rec) }
+      .groupBy { rec -> rec.condition?.toString()?.trim() ?: 'NA' }
+
+    def pairs = []
+    byCond.each { cond, list ->
+      def ordered = list.sort { a, b ->
+        def ra = a.replicate?.toString()?.isInteger() ? a.replicate.toInteger() : Integer.MAX_VALUE
+        def rb = b.replicate?.toString()?.isInteger() ? b.replicate.toInteger() : Integer.MAX_VALUE
+        ra <=> rb
+      }
+      if (ordered.size() < 2) {
+        return
+      }
+      def s1 = ordered[0].sample_id?.toString()?.trim()
+      def s2 = ordered[1].sample_id?.toString()?.trim()
+      if (!s1 || !s2) return
+
+      def p1 = file("${params.project_folder}/${params.macs3_output}/${s1}_peaks.${peak_ext}")
+      def p2 = file("${params.project_folder}/${params.macs3_output}/${s2}_peaks.${peak_ext}")
+      pairs << [pair_name: cond, rep1_peaks: p1.toString(), rep2_peaks: p2.toString()]
+    }
+
+    rows = Channel
+      .fromList(pairs)
+      .ifEmpty { exit 1, "ERROR: No valid IDR pairs generated from samples_master: ${params.samples_master}" }
+  } else {
+    exit 1, "ERROR: Provide --idr_pairs_csv (existing file) or --samples_master for auto IDR pairing."
+  }
 
   def filtered_rows = rows.filter { row ->
     def bed_chr    = file("${params.project_folder}/${idr_output}/${row.pair_name}_idr.sorted.chr.bed")

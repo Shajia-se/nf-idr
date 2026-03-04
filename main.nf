@@ -139,6 +139,10 @@ process sort_idr_peaks {
 workflow {
   def rows
   def peak_ext = (params.idr_input_type ?: "narrowPeak").toString()
+  def macsBase = file(params.macs3_output.toString()).isAbsolute()
+    ? file(params.macs3_output.toString())
+    : file("${params.project_folder}/${params.macs3_output}")
+  def macsProfile = (params.idr_macs3_profile ?: 'idr_q0.1').toString()
 
   if (params.idr_pairs_csv && file(params.idr_pairs_csv).exists()) {
     rows = Channel
@@ -200,8 +204,8 @@ workflow {
       def s2 = ordered[1].sample_id?.toString()?.trim()
       if (!s1 || !s2) return
 
-      def p1 = file("${params.project_folder}/${params.macs3_output}/${s1}_peaks.${peak_ext}")
-      def p2 = file("${params.project_folder}/${params.macs3_output}/${s2}_peaks.${peak_ext}")
+      def p1 = file("${macsBase}/${macsProfile}/${s1}_peaks.${peak_ext}")
+      def p2 = file("${macsBase}/${macsProfile}/${s2}_peaks.${peak_ext}")
       pairs << [pair_name: cond, rep1_peaks: p1.toString(), rep2_peaks: p2.toString()]
     }
 

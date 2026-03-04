@@ -5,7 +5,7 @@ def idr_output        = params.idr_output        ?: "idr_output"
 def pseudo_idr_output = params.pseudo_idr_output ?: "pseudo_idr_output"
 def idr_rank          = params.idr_rank          ?: "signal.value"
 def idr_input_type    = params.idr_input_type    ?: "narrowPeak"
-def pseudo_peak_q     = params.qvalue            ?: 0.05
+def pseudo_peak_q     = params.pseudo_peak_q     ?: 0.05
 
 process idr_call {
   tag "${pair}"
@@ -206,6 +206,8 @@ workflow {
 
       def p1 = file("${macsBase}/${macsProfile}/${s1}_peaks.${peak_ext}")
       def p2 = file("${macsBase}/${macsProfile}/${s2}_peaks.${peak_ext}")
+      assert p1.exists() : "Peak file not found for ${s1}: ${p1}"
+      assert p2.exists() : "Peak file not found for ${s2}: ${p2}"
       pairs << [pair_name: cond, rep1_peaks: p1.toString(), rep2_peaks: p2.toString()]
     }
 
